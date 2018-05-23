@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+./minishift-start && \
+./minishift-create-projects && \
+./minishift-create-app && \
+./minishift-bc-run

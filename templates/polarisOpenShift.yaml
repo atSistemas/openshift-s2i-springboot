@@ -1,0 +1,149 @@
+apiVersion: v1
+kind: Template
+labels:
+  template: polaris-springboot
+message: This Template create all the polaris resources to deploy automatically a springboot jar into two pods
+metadata:
+  annotations:
+    description: This it deploy springboot application in two pods 
+      pipeline that pauses for approval.
+    iconClass: icon-jboss
+    tags: polaris,springboot
+  name: polaris-springboot
+parameters:
+- displayName: MyProject project name
+  value: example
+  name: PROJECT
+  required: true
+- displayName: Polaris application name
+  value: polaris
+  name: APP
+  required: true 
+- displayName: Name jar to Application Spring Boot
+  value: spring-boot.jar
+  name: JARNAME
+  required: true  
+objects:  
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    generation: 1
+    labels:
+      app: ${APP}
+    name: ${APP}
+    namespace: ${PROJECT}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: ${APP}-service
+  spec:
+    ports:
+    - port: 8080
+      targetPort: 8080
+    selector:
+      deploymentconfig: ${APP}-dc
+- apiVersion: image.openshift.io/v1
+  kind: ImageStream
+  metadata:
+      creationTimestamp: '2018-05-23T11:46:22Z'
+      generation: 1
+      name: redhat-openjdk18-openshift
+      namespace: example
+      
+  spec:
+   dockerImageRepository: registry.access.redhat.com/redhat-openjdk-18/openjdk18-openshift
+   lookupPolicy:
+     local: false
+   tags:
+    - annotations:
+        description: OpenJDK S2I images.
+        iconClass: icon-jboss
+        sampleContextDir: undertow-servlet
+        sampleRepo: 'https://github.com/jboss-openshift/openshift-quickstarts'
+        supports: 'java:8,xpaas:1.0'
+        tags: 'builder,java,xpaas'
+        version: '1.0'
+      generation: 1
+      importPolicy: {}
+      name: '1.0'
+      referencePolicy:
+        type: Source
+  status:
+   dockerImageRepository: '172.30.1.1:5000/example/redhat-openjdk18-openshift'
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    name: ${APP}-dc
+  spec:
+    replicas: 2
+    selector:
+      deploymentconfig: ${APP}-dc
+    strategy:
+      # We set the type of strategy to Recreate, which means that it will be scaled down prior to being scaled up
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          deploymentconfig: ${APP}-dc
+      spec:
+      
+        containers:
+         - env:
+            - name: JAVA_APP_JAR
+              value: ${JARNAME}
+           image: ${PROJECT}/${APP}:latest
+           name: ${APP}
+           ports:
+             - containerPort: 8080
+               protocol: TCP
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30       
+    triggers:
+    - type: ConfigChange
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - ${APP}
+        from:
+          kind: ImageStreamTag
+          name: '${APP}:latest'
+      type: ImageChange
+- apiVersion: v1
+  kind: Route
+  metadata:
+    name: ${APP}-r
+  spec:
+    to:
+      kind: Service
+      name: ${APP}-service 
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+  
+   labels:
+     app: ${APP}
+   name: ${APP}
+   namespace: ${PROJECT}
+  spec:
+   output:
+    to:
+      kind: ImageStreamTag
+      name: '${APP}:latest'
+   runPolicy: Serial
+   source:
+    contextDir: /
+    git:
+      ref: master
+      uri: 'https://github.com/japorras/polaris.git'
+    type: Git
+   strategy:
+    sourceStrategy:
+      from:
+        kind: ImageStreamTag
+        name: 'redhat-openjdk18-openshift:latest'
+    type: Source
+  triggers: []     
+        
