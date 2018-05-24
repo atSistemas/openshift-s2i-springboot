@@ -58,4 +58,4 @@ oc start-build polaris
 ## Note
 The last steps generate a imageStream from the build strategy s2i (source to image) from 
 source code of a example git repository (SpringBoot). Once the image is generate, 
-the infraestructure will be setup fot the springboot service. 
+the infraestructure will be setup for the SpringBoot service. 
