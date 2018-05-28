@@ -1,0 +1,250 @@
+apiVersion: v1
+kind: Template
+labels:
+  template: polaris-springboot
+message: This Template create all the polaris resources to deploy automatically a springboot jar into two pods
+metadata:
+  annotations:
+    description: This it deploy springboot application in two pods 
+      pipeline that pauses for approval.
+    iconClass: icon-jboss
+    tags: polaris,springboot
+  name: polaris-springboot
+parameters:
+- displayName: MyProject project name
+  value: cicd-ja
+  name: PROJECT
+  required: true
+- displayName: Routing element PRO
+  value: ROUTERP
+  name: dpro
+  required: true  
+- displayName: Polaris application name
+  value: polaris
+  name: APP
+  required: true    
+- displayName: Name jar to Application Spring Boot
+  value: spring-boot.jar
+  name: JARNAME
+  required: true
+- description: Github trigger secret.  A difficult to guess string encoded as part of the webhook URL.  Not encrypted.
+  displayName: GitHub Webhook Secret
+  from: '[a-zA-Z0-9]{40}'
+  generate: expression
+  name: GITHUB_WEBHOOK_SECRET
+- description: A secret string used to configure the Generic webhook.
+  displayName: Generic Webhook Secret
+  from: '[a-zA-Z0-9]{40}'
+  generate: expression
+  name: GENERIC_WEBHOOK_SECRET  
+objects:
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    annotations:
+      pipeline.alpha.openshift.io/uses: '[{"name": "${NAME}", "namespace": "", "kind": "DeploymentConfig"}]'
+    creationTimestamp: null
+    labels:
+      name: bluegreen-pipeline
+    name: bluegreen-pipeline
+  spec:
+    strategy:
+      jenkinsPipelineStrategy:
+        jenkinsfile: |-
+            try {
+               timeout(time: 20, unit: 'MINUTES') {
+                  def routerMaster="dpro"
+                  def project="pro"
+                  def tag="blue"
+                  def altTag="green"
+                  def verbose="false"
+                  def app="polaris"
+
+                  node {
+                      
+                    stage("Build Image") {
+                       echo "building image ${app}"  
+                       openshiftBuild buildConfig: app, showBuildLogs: "true", verbose: verbose, namespace: "dev"
+                    }
+                            
+                    stage("Deploy DEV") {
+                      openshiftTag srcStream: app, srcTag: 'latest', destinationStream: app, destinationTag: tag, verbose: verbose, namespace: "dev"
+                      openshiftVerifyDeployment deploymentConfig: "${app}-dc", verbose: verbose, namespace: "dev" 
+                    }
+                            
+                    stage("Deploy STAGE") {
+                      openshiftDeploy deploymentConfig: "pre-dc", verbose:verbose, namespace: "pre"
+                    }
+                    
+                    stage("Upload version artifact in PRO") {
+                      input message: "Test deployment in PRO. Approve?", id: "approval"
+                    }
+                    
+                      
+                    stage("Initialize PRO") {
+                      sh "oc get route ${routerMaster} -n ${project} -o jsonpath='{ .spec.to.name }' --loglevel=4 > activeservice"
+                      activeService = readFile('activeservice').trim()
+                      if (activeService == "${project}-blue") {
+                        tag = "green"
+                        altTag = "blue"
+                      }
+                      sh "oc get route ${tag}-d${project} -n ${project} -o jsonpath='{ .spec.host }' --loglevel=4 > routehost"
+                      routeHost = readFile('routehost').trim()
+                    }
+
+                    //stage("Build") {
+                    //  echo "building tag ${tag}"
+                    //  openshiftBuild buildConfig: routerMaster, showBuildLogs: "true", verbose: verbose
+                    //}
+
+                    stage("Deploy Test PRO") {
+                      openshiftTag srcStream: app, srcTag: 'latest', destinationStream: app, destinationTag: tag, verbose: verbose, namespace: "dev"
+                      openshiftVerifyDeployment deploymentConfig: "${project}-${tag}", verbose: verbose, namespace: project 
+                    }
+
+                    stage("Active deploy to ${tag}") {
+                      input message: "Test deployment: http://${routeHost}. Approve?", id: "approval"
+                    }
+
+                    stage("Go Live") {
+                      sh "oc set -n ${project} route-backends ${routerMaster} ${project}-${tag}=100 ${project}-${altTag}=0 --loglevel=4"
+                    }
+                  }
+               }
+            } catch (err) {
+               echo "in catch block"
+               echo "Caught: ${err}"
+               currentBuild.result = 'FAILURE'
+               throw err
+            }                    
+      type: JenkinsPipeline
+    triggers:
+    - github:
+        secret: "${GITHUB_WEBHOOK_SECRET}"
+      type: GitHub
+    - generic:
+        secret: "${GENERIC_WEBHOOK_SECRET}"
+      type: Generic  
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    generation: 1
+    labels:
+      app: ${APP}
+    name: ${APP}
+    namespace: ${PROJECT}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: ${APP}-service
+  spec:
+    ports:
+    - port: 8080
+      targetPort: 8080
+    selector:
+      deploymentconfig: ${APP}-dc
+- apiVersion: image.openshift.io/v1
+  kind: ImageStream
+  metadata:
+      creationTimestamp: '2018-05-23T11:46:22Z'
+      generation: 1
+      name: redhat-openjdk18-openshift
+      namespace: example
+      
+  spec:
+   dockerImageRepository: registry.access.redhat.com/redhat-openjdk-18/openjdk18-openshift
+   lookupPolicy:
+     local: false
+   tags:
+    - annotations:
+        description: OpenJDK S2I images.
+        iconClass: icon-jboss
+        sampleContextDir: undertow-servlet
+        sampleRepo: 'https://github.com/jboss-openshift/openshift-quickstarts'
+        supports: 'java:8,xpaas:1.0'
+        tags: 'builder,java,xpaas'
+        version: '1.0'
+      generation: 1
+      importPolicy: {}
+      name: '1.0'
+      referencePolicy:
+        type: Source
+  status:
+   dockerImageRepository: '172.30.1.1:5000/example/redhat-openjdk18-openshift'
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    name: ${APP}-dc
+  spec:
+    replicas: 2
+    selector:
+      deploymentconfig: ${APP}-dc
+    strategy:
+      # We set the type of strategy to Recreate, which means that it will be scaled down prior to being scaled up
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          deploymentconfig: ${APP}-dc
+      spec:
+      
+        containers:
+         - env:
+            - name: JAVA_APP_JAR
+              value: ${JARNAME}
+           image: ${PROJECT}/${APP}:latest
+           name: ${APP}
+           ports:
+             - containerPort: 8080
+               protocol: TCP
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30       
+    triggers:
+    - type: ConfigChange
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - ${APP}
+        from:
+          kind: ImageStreamTag
+          name: '${APP}:latest'
+      type: ImageChange
+- apiVersion: v1
+  kind: Route
+  metadata:
+    name: ${APP}-r
+  spec:
+    to:
+      kind: Service
+      name: ${APP}-service 
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+  
+   labels:
+     app: ${APP}
+   name: ${APP}
+   namespace: ${PROJECT}
+  spec:
+   output:
+    to:
+      kind: ImageStreamTag
+      name: '${APP}:latest'
+   runPolicy: Serial
+   source:
+    contextDir: /
+    git:
+      ref: master
+      uri: 'https://github.com/japorras/polaris.git'
+    type: Git
+   strategy:
+    sourceStrategy:
+      from:
+        kind: ImageStreamTag
+        name: 'redhat-openjdk18-openshift:latest'
+    type: Source
+  triggers: []     
+        

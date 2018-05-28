@@ -1,0 +1,172 @@
+apiVersion: v1
+kind: Template
+labels:
+  template: pro-bluegreen
+message: This Template create all resources to deploy a imageStream from the deployment strategy Blue&Green
+metadata:
+  annotations:
+    description: This it deploy springboot application in two pods 
+      pipeline that pauses for approval.
+    iconClass: icon-jboss
+    tags: polaris,springboot
+  name: polaris-springboot
+parameters:
+- displayName: PRO project name
+  value: pros
+  name: PROJECT
+  required: true
+- displayName: Reference project name
+  value: dev
+  name: PROJECTREFERENCE
+  required: true  
+- displayName: Polaris application name
+  value: polaris
+  name: IMAGENAME
+  required: true 
+- displayName: Name jar to Application Spring Boot
+  value: spring-boot.jar
+  name: JARNAME
+  required: true
+objects:   
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: ${PROJECT}-blue
+  spec:
+    ports:
+    - port: 8080
+      targetPort: 8080
+    selector:
+        deploymentconfig: ${PROJECT}-blue
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    name: ${PROJECT}-blue
+  spec:
+    replicas: 2
+    selector: 
+        deploymentconfig: ${PROJECT}-blue
+    strategy:
+      type: Rolling      
+    template:
+      metadata:
+        labels:
+          deploymentconfig: ${PROJECT}-blue
+      spec:
+        containers:
+        - env:
+            - name: JAVA_APP_JAR
+              value: ${JARNAME}  
+          image: openshift/deployment-example:v1
+          name: deployment-${PROJECT}
+          ports:
+          - containerPort: 8080
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /
+              port: 8080
+              scheme: HTTP
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1           
+    triggers:
+    - type: ConfigChange
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - deployment-${PROJECT}
+        from:
+          kind: ImageStreamTag
+          name: ${IMAGENAME}:blue
+          namespace: ${PROJECTREFERENCE}
+      type: ImageChange    
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: ${PROJECT}-green
+  spec:
+    ports:
+    - port: 8080
+      targetPort: 8080
+    selector:
+        deploymentconfig: ${PROJECT}-green
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    name: ${PROJECT}-green
+  spec:  
+    replicas: 2
+    selector: 
+        deploymentconfig: ${PROJECT}-green
+    strategy:
+      type: Recreate     
+    template:
+      metadata:
+        labels:
+          deploymentconfig: ${PROJECT}-green
+      spec:
+        containers:
+        - env:
+            - name: JAVA_APP_JAR
+              value: ${JARNAME}
+          image: openshift/deployment-example:v1
+          name: deployment-${PROJECT}
+          ports:
+          - containerPort: 8080
+            protocol: TCP  
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /
+              port: 8080
+              scheme: HTTP
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1             
+    triggers:
+    - type: ConfigChange
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - deployment-${PROJECT}
+        from:
+          kind: ImageStreamTag
+          name: ${IMAGENAME}:green
+          namespace: ${PROJECTREFERENCE}
+      type: ImageChange        
+- apiVersion: v1
+  kind: Route
+  metadata:
+    name: blue-d${PROJECT}
+  spec:
+    to:
+      kind: Service
+      name: ${PROJECT}-blue
+- apiVersion: v1
+  kind: Route
+  metadata:
+    name: green-d${PROJECT}
+  spec:
+    to:
+      kind: Service
+      name: ${PROJECT}-green
+- apiVersion: v1
+  kind: Route
+  metadata:
+    name: dpro
+  spec:
+    alternateBackends:
+    - name: ${PROJECT}-green  
+      weight: 0
+    to:
+      kind: Service
+      name: ${PROJECT}-blue
+      weight: 100
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    name: ${PROJECT}
+  spec:
+    dockerImageRepository: ${PROJECTREFERENCE}/polaris
