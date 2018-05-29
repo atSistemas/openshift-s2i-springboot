@@ -12,7 +12,7 @@ metadata:
   name: polaris-springboot
 parameters:
 - displayName: MyProject project name
-  value: cicd-ja
+  value: cicd
   name: PROJECT
   required: true
 - displayName: Routing element PRO
@@ -73,7 +73,7 @@ objects:
                     }
                             
                     stage("Deploy STAGE") {
-                      openshiftDeploy deploymentConfig: "pre-dc", verbose:verbose, namespace: "pre"
+                      openshiftDeploy deploymentConfig: "${app}-dc", verbose:verbose, namespace: "stage"
                     }
                     
                     stage("Upload version artifact in PRO") {

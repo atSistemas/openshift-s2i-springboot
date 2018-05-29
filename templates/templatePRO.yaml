@@ -12,7 +12,7 @@ metadata:
   name: polaris-springboot
 parameters:
 - displayName: PRO project name
-  value: pros
+  value: pro
   name: PROJECT
   required: true
 - displayName: Reference project name

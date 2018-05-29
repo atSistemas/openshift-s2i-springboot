@@ -11,7 +11,7 @@ metadata:
   name: polaris-DEV
 parameters:
 - displayName: MyProject project name
-  value: devs
+  value: dev
   name: PROJECT
   required: true
 - displayName: Polaris application name

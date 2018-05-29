@@ -1,33 +1,4 @@
-apiVersion: v1
-kind: Template
-labels:
-  template: polaris-springboot-pre
-message: This Template create all the polaris resources to deploy automatically a springboot jar in pre environment
-metadata:
-  annotations:
-    description: This it deploy springboot application in pre environment
-    iconClass: icon-jboss
-    tags: polaris,springboot,pre
-  name: polaris-PRE
-parameters:
-- displayName: MyProject project name
-  value: stage
-  name: PROJECT
-  required: true
-- displayName: environment dev
-  value: dev
-  name: ENVDEV
-  required: true  
-- displayName: Polaris application name
-  value: polaris
-  name: APP
-  required: true    
-- displayName: Name jar to Application Spring Boot
-  value: spring-boot.jar
-  name: JARNAME
-  required: true
-objects:
--   apiVersion: v1
+- apiVersion: v1
     kind: DeploymentConfig
     metadata:
       annotations:
@@ -35,15 +6,15 @@ objects:
       creationTimestamp: '2018-05-28T14:00:25Z'
       generation: 3
       labels:
-        app: ${APP}-${PROJECT}
+        app: polaris-PRE
         template: polaris-springboot-pre
-      name: ${APP}-dc
-      namespace: ${PROJECT}
+      name: pretest-dc
+      namespace: pre
     spec:
       replicas: 2
       revisionHistoryLimit: 10
       selector:
-        deploymentconfig: ${APP}-dc
+        deploymentconfig: pretest-dc
       strategy:
         activeDeadlineSeconds: 21600
         resources: {}
@@ -57,8 +28,8 @@ objects:
       template:
         metadata:
           labels:
-            app: ${APP}-${PROJECT}
-            deploymentconfig: ${APP}-dc
+            app: polaris-PRE
+            deploymentconfig: pretest-dc
         spec:
           containers:
             - env:
@@ -92,25 +63,7 @@ objects:
               - deployment-pre
             from:
               kind: ImageStreamTag
-              name: '${APP}:latest'
-              namespace: ${ENVDEV}
+              name: 'polaris:latest'
+              namespace: dev
           type: ImageChange
-        - type: ConfigChange                 
-- apiVersion: v1
-  kind: Service
-  metadata:
-    name: ${APP}-service
-  spec:
-    ports:
-    - port: 8080
-      targetPort: 8080
-    selector:
-      deploymentconfig: ${APP}-dc      
-- apiVersion: v1
-  kind: Route
-  metadata:
-    name: ${APP}-r
-  spec:
-    to:
-      kind: Service
-      name: ${APP}-service
+        - type: ConfigChange

@@ -5,4 +5,11 @@ oc login -u developer
 
 # Create Projects
 echo "Creating example namespace ..."
-oc new-project example --display-name="example SprintBoot"
+oc new-project dev --display-name="DEV Environment" && \ 
+echo "Creating STAGE namespace ..."
+oc new-project stage --display-name="Stage environment" && \
+echo "Creating PRO namespace ..."
+oc new-project pro --display-name="PRO environment" && \
+echo "Creating CI/CD namespace ..."
+oc new-project cicd --display-name="CI/CD Management"
+

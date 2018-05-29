@@ -11,7 +11,7 @@ metadata:
   name: polaris-PRE
 parameters:
 - displayName: MyProject project name
-  value: stage
+  value: pres
   name: PROJECT
   required: true
 - displayName: environment dev
@@ -37,13 +37,13 @@ objects:
       labels:
         app: ${APP}-${PROJECT}
         template: polaris-springboot-pre
-      name: ${APP}-dc
+      name: ${PROJECT}-dc
       namespace: ${PROJECT}
     spec:
       replicas: 2
       revisionHistoryLimit: 10
       selector:
-        deploymentconfig: ${APP}-dc
+        deploymentconfig: ${PROJECT}-dc
       strategy:
         activeDeadlineSeconds: 21600
         resources: {}
@@ -58,7 +58,7 @@ objects:
         metadata:
           labels:
             app: ${APP}-${PROJECT}
-            deploymentconfig: ${APP}-dc
+            deploymentconfig: ${PROJECT}-dc
         spec:
           containers:
             - env:
@@ -105,7 +105,7 @@ objects:
     - port: 8080
       targetPort: 8080
     selector:
-      deploymentconfig: ${APP}-dc      
+      deploymentconfig: ${PROJECT}-dc      
 - apiVersion: v1
   kind: Route
   metadata:

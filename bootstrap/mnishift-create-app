@@ -6,3 +6,16 @@ oc login -u developer
 # Create Projects
 echo "Creating example namespace ..."
 oc new-app -f ../templates/polarisOpenShift.yaml -n example
+echo "Creating DEV application..."
+oc new-app -f ../templates/templateDEV.yaml -n dev && \ 
+echo "Creating STAGE application..."
+oc new-app -f ../templates/templatePRE.yaml -n stage && \ 
+echo "Creating PRO application..."
+oc new-app -f ../templates/templatePRO.yaml -n pro && \ 
+echo "Creating cid-cd application..."
+oc new-app -f ../templates/polarisOpenShiftJenkins.yaml -n cicd && \ 
+
+# Management policy in environment
+oc policy add-role-to-user admin system:serviceaccount:cicd-ja:jenkins -n dev
+oc policy add-role-to-user admin system:serviceaccount:cicd-ja:jenkins -n stage
+oc policy add-role-to-user admin system:serviceaccount:cicd-ja:jenkins -n pro
